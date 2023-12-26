@@ -1,0 +1,128 @@
+# ---
+# Feel free to modify this file to suit your needs..
+---
+version: '3'
+x-airflow-common:
+  &airflow-common
+  # uncomment the image tag to use a specific image
+  # comment the build & context if you want to use the built image.
+  # image: 'air-prune'
+  build:
+    context: ./lakehouse/airflow/airflow-setup
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth'   
+  volumes:
+    - ${PWD}/lakehouse/airflow/dags:/opt/airflow/dags
+    - ${PWD}/lakehouse/airflow/logs:/opt/airflow/logs
+    - ${PWD}/lakehouse/airflow/plugins:/opt/airflow/plugins
+    - ${PWD}/spark/app:/usr/local/spark/app  #Spark Scripts (Must be the same path in airflow and Spark Cluster)
+    - ${PWD}/spark/resources:/usr/local/spark/resources  #Resources folder (Must be the same path in airflow and Spark Cluster)
+  user: "${AIRFLOW_UID:-50000}:$AIRFLOW_GID:-50000}"
+  env_file:
+    - .env
+  networks:
+    - oasiscorp
+  depends_on:
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+
+services:
+
+  # Postgres DB
+  postgres:
+    build:
+      context: lakehouse/postgres
+      dockerfile: Dockerfile
+    container_name: postgres_container
+    hostname: postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    networks:
+      - oasiscorp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+      - ${PWD}/lakehouse/postgres/create_ranger_users.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  # Redis DB
+  redis:
+    image: 'redis:latest'
+    container_name: redis
+    networks:
+      - oasiscorp
+    expose:
+      - 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 30s
+      retries: 50
+    restart: always
+
+  # Airflow Web UI
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    container_name: webserver
+    ports:
+        - '8085:8080'
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8085/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+
+  # Airflow Scheduler
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    container_name: scheduler
+    restart: always
+
+  # Airflow Worker 
+  airflow-worker:
+    <<: *airflow-common
+    command: celery worker
+    container_name: celery-worker
+    restart: always
+
+  # Airflow DB
+  airflow-init:
+    <<: *airflow-common
+    command: version
+    container_name: airflow-init
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+
+
+
+volumes:
+  postgres-db-volume:
+    driver: local
+
+networks:
+  oasiscorp:
+    driver: bridge
