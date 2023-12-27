@@ -27,8 +27,42 @@ services:
       AIRFLOW_WEBSERVER_RBAC_LAST_NAME: san
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: sqlite:////airflow/airflow.db
     volumes:
         - ${PWD}/dags:/airflow/dags
+        - airflow-data:/airflow
     env_file:
         - .env
     restart: always
+    networks:
+            - oasiscorp
+
+
+  # Jupyter notebook
+  jupyter-spark:
+        hostname: myjupyter
+        container_name: jupyter_container
+        image: 'jupyter/pyspark-notebook:spark-3.2.0'
+        networks:
+            - oasiscorp
+        ports:
+          - "8888:8888"
+        volumes:
+          - ./notebooks:/home/jovyan/work/notebooks/
+          - airflow-data:/home/jovyan/airflow
+        restart: always
+          
+
+
+
+  
+
+# Network Bridge Connection
+volumes:
+  airflow-data:
+
+
+# Network Bridge Connection
+networks:
+  oasiscorp:
+    driver: bridge

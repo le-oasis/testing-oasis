@@ -19,6 +19,10 @@ RUN set -euo pipefail && \
 	gosu nobody true; \
     :
 
+# Install SQLite3
+RUN apt-get update && apt-get install -y sqlite3 && rm -rf /var/lib/apt/lists/*
+
+
 # Set up Hadoop
 ARG HADOOP_VERSION
 
