@@ -105,6 +105,9 @@ RUN set -euo pipefail && \
             # https://github.com/dbt-labs/dbt-core/issues/4745#issuecomment-1044354226
             "markupsafe==2.0.1" \
             "pendulum==2.1.2" \ 
+            "airflow-clickhouse-plugin" \ 
+            "clickhouse-driver" \ 
+            "pandas" \ 
             ; \
         popd; \
     fi; \

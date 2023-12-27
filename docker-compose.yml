@@ -29,4 +29,6 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     volumes:
         - ${PWD}/dags:/airflow/dags
+    env_file:
+        - .env
     restart: always
