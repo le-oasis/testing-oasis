@@ -104,6 +104,7 @@ RUN set -euo pipefail && \
             # Fixes ImportError: cannot import name 'soft_unicode' from 'markupsafe'
             # https://github.com/dbt-labs/dbt-core/issues/4745#issuecomment-1044354226
             "markupsafe==2.0.1" \
+            "pendulum==2.1.2" \ 
             ; \
         popd; \
     fi; \
