@@ -116,6 +116,9 @@ RUN set -euo pipefail && \
     rm -rf /var/lib/apt/lists/*; \
     :
 
+
+
+
 ARG AIRFLOW_HOME=/airflow
 ENV AIRFLOW_HOME="${AIRFLOW_HOME}"
 
@@ -135,6 +138,12 @@ ENV AIRFLOW_DAG="${AIRFLOW_HOME}/dags"
 RUN mkdir -p "${AIRFLOW_DAG}"
 
 COPY setup_auth.py test_db_conn.py ${AIRFLOW_HOME}/
+
+RUN pip install --upgrade pip
+# Install Airflow Extras, please edit depending on your project requirements
+ARG AIRFLOW_EXTRAS="apache.spark,amazon,jdbc,sqlite,celery,postgres,redis,ssh"
+RUN pip install apache-airflow[${AIRFLOW_EXTRAS}]
+
 
 # All the other env vars that don't affect the build here
 ENV PYSPARK_SUBMIT_ARGS="--py-files ${SPARK_HOME}/python/lib/pyspark.zip pyspark-shell"

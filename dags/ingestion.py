@@ -1,9 +1,11 @@
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
+from airflow.providers.sqlite.hooks.sqlite import SqliteHook
+from airflow.providers.sqlite.operators.sqlite import SqliteOperator
 from datetime import datetime, timedelta
 from sql import query_trip_data
 from clickhouse_driver import Client
-import os
+import sqlite3
 
 default_args = {
     'owner': 'airflow',
@@ -20,19 +22,15 @@ dag = DAG(
     'clickhouse_to_sqlite_dag', default_args=default_args, schedule_interval=None)
 
 def execute_query():
-    host = os.getenv('cl_host')
-    user = os.getenv('cl_user')
-    password = os.getenv('cl_password')
-    port = os.getenv('cl_port')
-    database = os.getenv('cl_database')
+    host = 'github.demo.altinity.cloud'
+    user = 'demo'
+    password = 'demo'
+    port = 9440
+    database = 'default'
     
     client = Client(host=host, user=user, password=password, port=port, database=database, secure=True)
     result = client.execute(query_trip_data)  # Execute the SQL query
     return result
-
-def write_to_sqlite(results):
-    # Function body here
-    pass
 
 execute_query_task = PythonOperator(
     task_id='execute_query',
@@ -41,12 +39,28 @@ execute_query_task = PythonOperator(
     provide_context=True,
 )
 
-write_to_sqlite_task = PythonOperator(
-    task_id='write_to_sqlite',
-    python_callable=write_to_sqlite,
-    op_args=['{{ ti.xcom_pull(task_ids="execute_query") }}'],
+create_table_sqlite_task = SqliteOperator(
+    task_id='create_table_sqlite',
+    sql=r"""
+    CREATE TABLE IF NOT EXISTS trip_metrics (
+        month text,
+        sat_mean_trip_count real,
+        sat_mean_fare_per_trip real,
+        sat_mean_duration_per_trip real,
+        sun_mean_trip_count real,
+        sun_mean_fare_per_trip real,
+        sun_mean_duration_per_trip real
+    );
+    """,
     dag=dag,
-    provide_context=True,
 )
 
-execute_query_task >> write_to_sqlite_task
+@dag.task(task_id="insert_sqlite_task")
+def insert_sqlite_hook(**context):
+    sqlite_hook = SqliteHook()
+    ti = context['ti']
+    results = ti.xcom_pull(task_ids="execute_query")
+    target_fields = ['month', 'sat_mean_trip_count', 'sat_mean_fare_per_trip', 'sat_mean_duration_per_trip', 'sun_mean_trip_count', 'sun_mean_fare_per_trip', 'sun_mean_duration_per_trip']
+    sqlite_hook.insert_rows(table='trip_metrics', rows=results, target_fields=target_fields)
+
+execute_query_task >> create_table_sqlite_task >> insert_sqlite_hook()
