@@ -25,4 +25,8 @@ services:
       AIRFLOW_WEBSERVER_RBAC_EMAIL: admin-san@xyz.com
       AIRFLOW_WEBSERVER_RBAC_FIRST_NAME: admin
       AIRFLOW_WEBSERVER_RBAC_LAST_NAME: san
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    volumes:
+        - ${PWD}/dags:/airflow/dags
     restart: always
